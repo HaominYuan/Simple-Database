@@ -1,5 +1,5 @@
-simple_database : main.c
-	cc -std=gnu99 -o simple_database main.c
+db : main.c
+	cc -std=gnu99 -o db main.c
 
 draft : draft.c
 	cc -std=c99 -o draft draft.c 
