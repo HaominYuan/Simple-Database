@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-
+// 输入存放的位置
 struct InputBuffer_t {
     char *buffer;
     size_t buffer_length;
@@ -16,11 +16,13 @@ struct InputBuffer_t {
 };
 typedef struct InputBuffer_t InputBuffer;
 
+// 元命令执行的结果
 enum MetaCommandResult_t {
     META_COMMAND_SUCCESS,
     META_COMMAND_UNRECOGNIZED_COMMAND
 };
 typedef enum MetaCommandResult_t MetaCommandResult;
+
 
 enum PrepareResult_t {
     PREPARE_SUCCESS,
@@ -31,15 +33,18 @@ enum PrepareResult_t {
 };
 typedef enum PrepareResult_t PrepareResult;
 
+// 声明类型
 enum StatementType_t {
     STATEMENT_INSERT,
     STATEMENT_SELECT
 };
 typedef enum StatementType_t StatementType;
 
+// 注意这里的常量并不等于下面的数组长度
 #define COLUMN_USERNAME_SIZE 32
 #define COLUMN_EMAIL_SIZE 255
 
+// 数据库中的一条记录
 struct Row_t {
     uint32_t id;
     char username[COLUMN_USERNAME_SIZE + 1];
@@ -47,12 +52,14 @@ struct Row_t {
 };
 typedef struct Row_t Row;
 
+// 声明，包括声明的类型和记录
 struct Statement_t {
     StatementType type;
     Row row_to_insert;
 };
 typedef struct Statement_t Statement;
 
+// 声明执行后的状态
 enum ExecuteResult_t {
     EXECUTE_SUCCESS,
     EXECUTE_TABLE_FULL
@@ -73,7 +80,7 @@ uint32_t ROW_SIZE = 0;
 uint32_t ROWS_PER_PAGE = 0;
 uint32_t TABLE_MAX_ROWS = 0;
 
-
+// 数据库文件，包括所有的页面
 struct Pager_t {
     int file_descriptor;
     uint32_t file_length;
@@ -81,6 +88,7 @@ struct Pager_t {
 };
 typedef struct Pager_t Pager;
 
+// 表格
 struct Table_t {
     Pager *pager;
     uint32_t num_rows;
@@ -116,6 +124,7 @@ int main(int argc, char *argv[]) {
     }
 
     char *filename = argv[1];
+    // 打开文件，并没有赋予空间
     Table *table = db_open(filename);
 
     InputBuffer* input_buffer = new_input_buffer();
@@ -294,8 +303,10 @@ void *row_slot(Table *table, uint32_t row_num) {
 }
 
 PrepareResult prepare_insert(InputBuffer *input_buffer, Statement *statement) {
+    // 将声明置为插入语句
     statement->type = STATEMENT_INSERT;
 
+    // strtok() 函数为不可重入函数，不安全。
     char *keyword = strtok(input_buffer->buffer, " ");
     char *id_string = strtok(NULL, " ");
     char *username = strtok(NULL, " ");
@@ -314,7 +325,7 @@ PrepareResult prepare_insert(InputBuffer *input_buffer, Statement *statement) {
         return PREPARE_STRING_TOO_LONG;
     }
 
-    if (strlen(email) > COLUMN_USERNAME_SIZE) {
+    if (strlen(email) > COLUMN_EMAIL_SIZE) {
         return PREPARE_STRING_TOO_LONG;
     }
 
@@ -342,6 +353,7 @@ void *get_page(Pager* pager, uint32_t page_num) {
 	exit(EXIT_FAILURE);
     }
 
+    // 这里意味着只有当用的时候才将数据从磁盘当中读取出来
     if (pager->pages[page_num] == NULL) {
         // Cache miss. Allocate memory and load from file.
 	void *page = malloc(PAGE_SIZE);
@@ -399,7 +411,8 @@ Pager* pager_open(const char *filename) {
 void db_close(Table *table) {
     Pager *pager = table->pager;
     uint32_t num_full_pages = table->num_rows / ROWS_PER_PAGE;
-
+    
+    // 存放整数页
     for (uint32_t i = 0; i < num_full_pages; i++) {
         if (pager->pages[i] == NULL) {
 	    continue;
@@ -409,8 +422,10 @@ void db_close(Table *table) {
 	pager->pages[i] = NULL;
     }
 
+    // 一部分行未完全填充一个页面
     uint32_t num_additional_rows = table->num_rows % ROWS_PER_PAGE;
     if (num_additional_rows > 0) {
+        // 下标从零开始
         uint32_t page_num = num_full_pages;
 	if (pager->pages[page_num] != NULL) {
 	    pager_flush(pager, page_num, num_additional_rows * ROW_SIZE);
@@ -419,12 +434,14 @@ void db_close(Table *table) {
 	}
     }
 
+    // 关闭文件
     int result = close(pager->file_descriptor);
     if (result == -1) {
         printf("Error closing db file.\n");
 	exit(EXIT_FAILURE);
     }
 
+    // 释放空间
     for (uint32_t i = 0; i < TABLE_MAX_PAGES; i++) {
         void *page = pager->pages[i];
 	if (page) {
@@ -432,10 +449,12 @@ void db_close(Table *table) {
 	    pager->pages[i] = NULL;
 	}
     }
+    // 释放空间
     free(pager);
 }
 
 void pager_flush(Pager *pager, uint32_t page_num, uint32_t size) {
+    // 存空页则报错
     if (pager->pages[page_num] == NULL) {
         printf("Tried to flush null page\n");
 	exit(EXIT_FAILURE);
